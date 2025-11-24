@@ -1,0 +1,12 @@
+{
+  "name": "gmail-refund-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "esbuild src/background.ts --bundle --outfile=dist/background.js --platform=browser --target=es2020 && esbuild src/popup.ts --bundle --outfile=dist/popup.js --platform=browser --target=es2020",
+    "watch": "esbuild src/background.ts --bundle --outfile=dist/background.js --platform=browser --target=es2020 --watch & esbuild src/popup.ts --bundle --outfile=dist/popup.js --platform=browser --target=es2020 --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.0"
+  }
+}
