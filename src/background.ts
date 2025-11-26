@@ -73,10 +73,11 @@ async function fetchRefunds(periodDays: number = 14) {
   if (await getRuntimeDevMode()) {
     // simulate progress so the UI shows a determinate bar in dev mode
     const total = MOCK_REFUNDS.length;
-    try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: 0, total }); } catch (e) { }
+    // Use callback and check lastError so we don't throw when no receiver is present (popup closed)
+    try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: 0, total }, () => { if (chrome.runtime && chrome.runtime.lastError) { /* no receiver */ } }); } catch (e) { }
     for (let i = 0; i < total; i++) {
       await new Promise((r) => setTimeout(r, 120));
-      try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: i + 1, total }); } catch (e) { }
+      try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: i + 1, total }, () => { if (chrome.runtime && chrome.runtime.lastError) { /* no receiver */ } }); } catch (e) { }
     }
     await new Promise<void>((res) => chrome.storage.local.set({ refunds: MOCK_REFUNDS }, res));
     return MOCK_REFUNDS;
@@ -99,7 +100,7 @@ async function fetchRefunds(periodDays: number = 14) {
   const results: any[] = [];
   const total = messages.length;
   // inform popup of total messages to scan
-  try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: 0, total }); } catch (e) { }
+  try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: 0, total }, () => { if (chrome.runtime && chrome.runtime.lastError) { /* no receiver */ } }); } catch (e) { }
   let processed = 0;
   for (const m of messages.slice(0, 200)) {
     const msgUrl = `https://www.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`;
@@ -113,7 +114,7 @@ async function fetchRefunds(periodDays: number = 14) {
     const candidate = detectRefundCandidate(subject, body);
     if (candidate) {
       // Extract 'From' header information to group results by sender
-      const fromHeader = headers.find((h:any) => h.name.toLowerCase() === 'from')?.value || '';
+      const fromHeader = headers.find((h: any) => h.name.toLowerCase() === 'from')?.value || '';
       (candidate as any).from = fromHeader;
       // parse display name and email address from the From header if possible
       let fromName: string | null = null;
@@ -138,7 +139,7 @@ async function fetchRefunds(periodDays: number = 14) {
         if (!Number.isNaN(ms)) dateStr = new Date(ms).toISOString();
       }
       if (!dateStr) {
-        const dateHeader = headers.find((h:any) => h.name.toLowerCase() === 'date')?.value;
+        const dateHeader = headers.find((h: any) => h.name.toLowerCase() === 'date')?.value;
         try { if (dateHeader) dateStr = new Date(dateHeader).toISOString(); } catch (e) { dateStr = null; }
       }
       if (dateStr) (candidate as any).date = dateStr;
@@ -151,7 +152,7 @@ async function fetchRefunds(periodDays: number = 14) {
     }
     // increment processed and inform popup
     processed++;
-    try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: processed, total }); } catch (e) { }
+    try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: processed, total }, () => { if (chrome.runtime && chrome.runtime.lastError) { /* no receiver */ } }); } catch (e) { }
   }
 
   await new Promise<void>((res) => chrome.storage.local.set({ refunds: results }, res));
