@@ -90,7 +90,10 @@ async function collapseAllGroups() {
   await setStoredCollapsedSenders(keys);
   // update toggle label after collapsing
   const toggleBtn = document.getElementById('collapse-toggle') as HTMLButtonElement | null;
-  if (toggleBtn) toggleBtn.textContent = 'Expand all';
+  if (toggleBtn) {
+    toggleBtn.classList.add('all-collapsed');
+    toggleBtn.setAttribute('aria-label', 'Expand all');
+  }
 }
 
 // Expand all sender groups (show their items) and persist the collapsed set as empty
@@ -107,7 +110,10 @@ async function expandAllGroups() {
   await setStoredCollapsedSenders(new Set());
   // update toggle label after expanding
   const toggleBtn = document.getElementById('collapse-toggle') as HTMLButtonElement | null;
-  if (toggleBtn) toggleBtn.textContent = 'Collapse all';
+  if (toggleBtn) {
+    toggleBtn.classList.remove('all-collapsed');
+    toggleBtn.setAttribute('aria-label', 'Collapse all');
+  }
 }
 
 async function render(refunds: any[]) {
@@ -203,7 +209,13 @@ async function render(refunds: any[]) {
         const containers = document.querySelectorAll('div[data-group-key]');
         let anyVisible = false;
         containers.forEach((c) => { if ((c as HTMLElement).style.display !== 'none') anyVisible = true; });
-        toggleBtn.textContent = anyVisible ? 'Collapse all' : 'Expand all';
+        if (anyVisible) {
+          toggleBtn.classList.remove('all-collapsed');
+          toggleBtn.setAttribute('aria-label', 'Collapse all');
+        } else {
+          toggleBtn.classList.add('all-collapsed');
+          toggleBtn.setAttribute('aria-label', 'Expand all');
+        }
       }
     });
 
@@ -260,10 +272,16 @@ function fetchAndRender() {
   if (progressEl) progressEl.style.display = 'block';
   if (progressBar) progressBar.style.width = '0%';
   if (progressText) progressText.textContent = '0 / 0';
-  if (refreshBtn) refreshBtn.disabled = true;
+  if (refreshBtn) {
+    refreshBtn.disabled = true;
+    refreshBtn.classList.add('loading');
+  }
 
   chrome.runtime.sendMessage({ action: 'fetchRefunds', periodDays }, (resp) => {
-    if (refreshBtn) refreshBtn.disabled = false;
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+      refreshBtn.classList.remove('loading');
+    }
     if (progressEl) progressEl.style.display = 'none';
     if (!resp) return showError('No response from background script.');
     if (!resp.ok) return showError('Error: ' + (resp.error || 'unknown'));
@@ -321,8 +339,25 @@ document.addEventListener('DOMContentLoaded', () => {
   // collapse toggle button — set initial label and event handler
   const collapseToggleBtn = document.getElementById('collapse-toggle') as HTMLButtonElement | null;
   if (collapseToggleBtn) {
-    // initialize label from storage: if there are any collapsed keys, offer to Expand all; otherwise Collapse all
-    getStoredCollapsedSenders().then((set) => { collapseToggleBtn.textContent = set.size ? 'Expand all' : 'Collapse all'; });
+    // Ensure the button contains the two icon svgs. Older versions may have replaced contents with text,
+    // which would prevent the CSS icons from displaying. Reinsert icons when missing.
+    if (!collapseToggleBtn.querySelector('.icon')) {
+      collapseToggleBtn.innerHTML = `
+        <svg class="icon icon-minus" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M5 12h14" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <svg class="icon icon-plus" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M12 5v14" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M5 12h14" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      `;
+    }
+    // initialize icon state from storage: if there are any collapsed keys, show plus (all-collapsed), otherwise show minus
+    getStoredCollapsedSenders().then((set) => { 
+      if (set.size) collapseToggleBtn.classList.add('all-collapsed');
+      else collapseToggleBtn.classList.remove('all-collapsed');
+      collapseToggleBtn.setAttribute('aria-label', set.size ? 'Expand all' : 'Collapse all');
+    });
     collapseToggleBtn.addEventListener('click', async () => {
       // determine if any group is currently visible; if so, collapse all, otherwise expand all
       const containers = document.querySelectorAll('div[data-group-key]');
@@ -331,10 +366,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const el = c as HTMLElement;
         if (el.style.display !== 'none') anyVisible = true;
       });
-      if (anyVisible) await collapseAllGroups();
-      else await expandAllGroups();
-      // update button label
-      collapseToggleBtn.textContent = anyVisible ? 'Expand all' : 'Collapse all';
+      if (anyVisible) {
+        await collapseAllGroups();
+        collapseToggleBtn.classList.add('all-collapsed');
+        collapseToggleBtn.setAttribute('aria-label', 'Expand all');
+      } else {
+        await expandAllGroups();
+        collapseToggleBtn.classList.remove('all-collapsed');
+        collapseToggleBtn.setAttribute('aria-label', 'Collapse all');
+      }
     });
   }
 });

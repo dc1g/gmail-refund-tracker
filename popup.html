@@ -76,6 +76,10 @@
       margin-top: 6px
     }
 
+    /* Refresh icon loading animation */
+    button#refresh.loading svg { animation: rotate 900ms linear infinite; }
+    @keyframes rotate { to { transform: rotate(360deg); } }
+
     /* Collapsible group caret */
     .caret {
       width: 18px;
@@ -106,13 +110,35 @@
     .caret.closed {
       transform: rotate(0deg);
     }
+    
+      /* Toggle button icons: show plus when all groups collapsed, otherwise show minus */
+      #collapse-toggle .icon { display: none; vertical-align: middle; }
+      #collapse-toggle .icon-minus { display: inline-block; }
+      #collapse-toggle.all-collapsed .icon-minus { display: none; }
+      #collapse-toggle.all-collapsed .icon-plus { display: inline-block; }
   </style>
 </head>
 
 <body>
   <div id="toolbar">
-  <button id="refresh">Refresh</button>
-  <button id="collapse-toggle" title="Toggle collapse/expand">Collapse all</button>
+    <button id="refresh" aria-label="Refresh results" title="Refresh results" style="display:inline-flex;align-items:center;justify-content:center">
+      <!-- refresh icon (SVG) -->
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M21 12a9 9 0 1 0-2.6 6.06" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M21 3v6h-6" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    </button>
+    <button id="collapse-toggle" title="Toggle collapse/expand" aria-label="Collapse all">
+      <!-- minus shown when groups are expanded (action will collapse all) -->
+      <svg class="icon icon-minus" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M5 12h14" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <!-- plus shown when groups are all collapsed (action will expand all) -->
+      <svg class="icon icon-plus" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M12 5v14" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M5 12h14" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
     <div style="flex:1"></div>
     <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:#333">
       <input id="dev-toggle" type="checkbox" />
