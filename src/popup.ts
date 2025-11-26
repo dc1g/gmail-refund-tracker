@@ -72,6 +72,44 @@ function setStoredCollapsedSenders(keys: Set<string>): Promise<void> {
   });
 }
 
+// Collapse all sender groups (hide their items) and persist the collapsed set
+async function collapseAllGroups() {
+  const containers = document.querySelectorAll('div[data-group-key]');
+  const keys = new Set<string>();
+  containers.forEach((c) => {
+    const key = (c as HTMLElement).dataset.groupKey;
+    if (!key) return;
+    keys.add(key);
+    (c as HTMLElement).style.display = 'none';
+    const header = (c as HTMLElement).previousElementSibling as HTMLElement | null;
+    if (header) {
+      const caret = header.querySelector('.caret');
+      if (caret) (caret as HTMLElement).classList.add('closed');
+    }
+  });
+  await setStoredCollapsedSenders(keys);
+  // update toggle label after collapsing
+  const toggleBtn = document.getElementById('collapse-toggle') as HTMLButtonElement | null;
+  if (toggleBtn) toggleBtn.textContent = 'Expand all';
+}
+
+// Expand all sender groups (show their items) and persist the collapsed set as empty
+async function expandAllGroups() {
+  const containers = document.querySelectorAll('div[data-group-key]');
+  containers.forEach((c) => {
+    (c as HTMLElement).style.display = '';
+    const header = (c as HTMLElement).previousElementSibling as HTMLElement | null;
+    if (header) {
+      const caret = header.querySelector('.caret');
+      if (caret) (caret as HTMLElement).classList.remove('closed');
+    }
+  });
+  await setStoredCollapsedSenders(new Set());
+  // update toggle label after expanding
+  const toggleBtn = document.getElementById('collapse-toggle') as HTMLButtonElement | null;
+  if (toggleBtn) toggleBtn.textContent = 'Collapse all';
+}
+
 async function render(refunds: any[]) {
   const list = el('list');
   list.innerHTML = '';
@@ -143,16 +181,30 @@ async function render(refunds: any[]) {
     caret.addEventListener('click', async (ev) => {
       ev.preventDefault();
       const key = groupKey;
-      if (collapsedSet.has(key)) {
-        collapsedSet.delete(key);
-        caret.classList.remove('closed');
+      // Determine collapsed state from the DOM (not only from the in-memory set) because expandAll/collapseAll
+      // may change DOM visibility without updating the local `collapsedSet` variable.
+      const isCollapsed = (itemsContainer.style.display === 'none');
+      if (isCollapsed) {
+        // currently collapsed -> expand
         itemsContainer.style.display = '';
+        caret.classList.remove('closed');
+        collapsedSet.delete(key);
       } else {
-        collapsedSet.add(key);
-        caret.classList.add('closed');
+        // currently expanded -> collapse
         itemsContainer.style.display = 'none';
+        caret.classList.add('closed');
+        collapsedSet.add(key);
       }
       await setStoredCollapsedSenders(collapsedSet);
+      // update the top-level toggle label so it reflects current state
+      const toggleBtn = document.getElementById('collapse-toggle') as HTMLButtonElement | null;
+      if (toggleBtn) {
+        // if any group remains visible then show Collapse all, otherwise show Expand all
+        const containers = document.querySelectorAll('div[data-group-key]');
+        let anyVisible = false;
+        containers.forEach((c) => { if ((c as HTMLElement).style.display !== 'none') anyVisible = true; });
+        toggleBtn.textContent = anyVisible ? 'Collapse all' : 'Expand all';
+      }
     });
 
     for (const r of g.items) {
@@ -264,6 +316,25 @@ document.addEventListener('DOMContentLoaded', () => {
       const val = Number(periodSelect.value) || 14;
       await setStoredPeriod(val);
       fetchAndRender();
+    });
+  }
+  // collapse toggle button — set initial label and event handler
+  const collapseToggleBtn = document.getElementById('collapse-toggle') as HTMLButtonElement | null;
+  if (collapseToggleBtn) {
+    // initialize label from storage: if there are any collapsed keys, offer to Expand all; otherwise Collapse all
+    getStoredCollapsedSenders().then((set) => { collapseToggleBtn.textContent = set.size ? 'Expand all' : 'Collapse all'; });
+    collapseToggleBtn.addEventListener('click', async () => {
+      // determine if any group is currently visible; if so, collapse all, otherwise expand all
+      const containers = document.querySelectorAll('div[data-group-key]');
+      let anyVisible = false;
+      containers.forEach((c) => {
+        const el = c as HTMLElement;
+        if (el.style.display !== 'none') anyVisible = true;
+      });
+      if (anyVisible) await collapseAllGroups();
+      else await expandAllGroups();
+      // update button label
+      collapseToggleBtn.textContent = anyVisible ? 'Expand all' : 'Collapse all';
     });
   }
 });
