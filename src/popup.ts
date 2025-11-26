@@ -112,7 +112,7 @@ chrome.runtime.onMessage.addListener((msg: any) => {
   const progressBar = document.getElementById('progress-bar');
   const progressText = document.getElementById('progress-text');
   if (progressEl) progressEl.style.display = 'block';
-  if (progressBar) progressBar.style.width = total > 0 ? `${Math.round((done/total)*100)}%` : '0%';
+  if (progressBar) progressBar.style.width = total > 0 ? `${Math.round((done / total) * 100)}%` : '0%';
   if (progressText) progressText.textContent = `${done} / ${total}`;
 });
 

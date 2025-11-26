@@ -73,10 +73,10 @@ async function fetchRefunds(periodDays: number = 14) {
   if (await getRuntimeDevMode()) {
     // simulate progress so the UI shows a determinate bar in dev mode
     const total = MOCK_REFUNDS.length;
-    try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: 0, total }); } catch (e) {}
+    try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: 0, total }); } catch (e) { }
     for (let i = 0; i < total; i++) {
       await new Promise((r) => setTimeout(r, 120));
-      try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: i + 1, total }); } catch (e) {}
+      try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: i + 1, total }); } catch (e) { }
     }
     await new Promise<void>((res) => chrome.storage.local.set({ refunds: MOCK_REFUNDS }, res));
     return MOCK_REFUNDS;
@@ -84,13 +84,13 @@ async function fetchRefunds(periodDays: number = 14) {
   const token = await getToken(true);
   // compute a date 'periodDays' ago and use Gmail's after:YYYY/MM/DD search filter
   const d = new Date();
-  d.setHours(0,0,0,0);
+  d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() - Math.max(1, Math.floor(periodDays)));
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   const afterStr = `${y}/${m}/${day}`;
-  const q = encodeURIComponent(`refund OR return OR refunded OR 'refund processed' after:${afterStr}`);
+  const q = encodeURIComponent(`label:important {category:primary category:updates} {subject:refund subject:"return"} -Fwd' after:${afterStr}`);
   const listUrl = `https://www.googleapis.com/gmail/v1/users/me/messages?q=${q}`;
   const listResp = await fetch(listUrl, { headers: { Authorization: `Bearer ${token}` } });
   if (!listResp.ok) throw new Error('Failed to list messages: ' + listResp.statusText);
@@ -99,7 +99,7 @@ async function fetchRefunds(periodDays: number = 14) {
   const results: any[] = [];
   const total = messages.length;
   // inform popup of total messages to scan
-  try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: 0, total }); } catch (e) {}
+  try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: 0, total }); } catch (e) { }
   let processed = 0;
   for (const m of messages.slice(0, 200)) {
     const msgUrl = `https://www.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`;
@@ -114,7 +114,7 @@ async function fetchRefunds(periodDays: number = 14) {
     if (candidate) results.push(candidate);
     // increment processed and inform popup
     processed++;
-    try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: processed, total }); } catch (e) {}
+    try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: processed, total }); } catch (e) { }
   }
 
   await new Promise<void>((res) => chrome.storage.local.set({ refunds: results }, res));
