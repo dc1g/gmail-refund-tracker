@@ -82,7 +82,7 @@ async function fetchRefunds(periodDays: number = 14) {
     // store mock data under a period-specific cache key so popup can reload quickly
     try {
       await new Promise<void>((res) => chrome.storage.local.set({ [`refunds_${periodDays}`]: { results: MOCK_REFUNDS, fetchedAt: Date.now() } }, res));
-    } catch (e) {}
+    } catch (e) { }
     return MOCK_REFUNDS;
   }
   const token = await getToken(true);
@@ -161,7 +161,7 @@ async function fetchRefunds(periodDays: number = 14) {
   try {
     // cache results under a key per the periodDays used
     await new Promise<void>((res) => chrome.storage.local.set({ [`refunds_${periodDays}`]: { results, fetchedAt: Date.now() } }, res));
-  } catch (e) {}
+  } catch (e) { }
   return results;
 }
 

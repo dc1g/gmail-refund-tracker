@@ -63,6 +63,26 @@ function getStoredCollapsedSenders(): Promise<Set<string>> {
   });
 }
 
+// Add a small ripple effect to a button-like element (material-style)
+function addRippleTo(el: HTMLElement) {
+  if (!el) return;
+  // ensure container is positioned so absolutely-positioned ripple fits
+  el.style.position = (getComputedStyle(el).position === 'static') ? 'relative' : getComputedStyle(el).position;
+  el.addEventListener('pointerdown', (ev) => {
+    const r = document.createElement('div');
+    r.className = 'ripple-el';
+    const rect = el.getBoundingClientRect();
+    const x = ev.clientX - rect.left;
+    const y = ev.clientY - rect.top;
+    r.style.left = `${x}px`;
+    r.style.top = `${y}px`;
+    const host = el.querySelector('.ripple') || (() => { const s = document.createElement('div'); s.className = 'ripple'; el.appendChild(s); return s; })();
+    host.appendChild(r);
+    // cleanup after animation
+    setTimeout(() => r.remove(), 700);
+  });
+}
+
 function setStoredCollapsedSenders(keys: Set<string>): Promise<void> {
   return new Promise((resolve) => {
     try {
@@ -70,6 +90,17 @@ function setStoredCollapsedSenders(keys: Set<string>): Promise<void> {
       chrome.storage.local.set({ collapsedSenders: arr }, () => resolve());
     } catch (e) { resolve(); }
   });
+}
+
+function setFooterCachedAt(ms?: number | null) {
+  const el = document.getElementById('cached-at');
+  if (!el) return;
+  try {
+    if (!ms) el.textContent = '—';
+    else el.textContent = new Date(ms).toLocaleString();
+  } catch (e) {
+    el.textContent = '—';
+  }
 }
 
 // Collapse all sender groups (hide their items) and persist the collapsed set
@@ -184,6 +215,8 @@ async function render(refunds: any[]) {
     if (collapsedSet.has(groupKey)) itemsContainer.style.display = 'none';
 
     // toggle handler
+    // attach ripple and accessible target
+    addRippleTo(caret);
     caret.addEventListener('click', async (ev) => {
       ev.preventDefault();
       const key = groupKey;
@@ -247,8 +280,8 @@ async function render(refunds: any[]) {
       snippet.className = 'snippet';
       snippet.textContent = r.snippet || '';
 
-      if (r.status === 'pending') item.style.background = '#fff7e6';
-      else item.style.background = '#e6fff0';
+      if (r.status === 'pending') item.style.background = 'var(--status-pending-bg)';
+      else item.style.background = 'var(--status-refunded-bg)';
       item.appendChild(title);
       item.appendChild(meta);
       item.appendChild(snippet);
@@ -277,6 +310,12 @@ function fetchAndRender() {
     refreshBtn.classList.add('loading');
   }
 
+  // attach ripple to top-level buttons so clicks feel material
+  const refreshBtnDom = document.getElementById('refresh') as HTMLElement | null;
+  if (refreshBtnDom) addRippleTo(refreshBtnDom);
+  const collapseToggleDom = document.getElementById('collapse-toggle') as HTMLElement | null;
+  if (collapseToggleDom) addRippleTo(collapseToggleDom);
+
   chrome.runtime.sendMessage({ action: 'fetchRefunds', periodDays }, (resp) => {
     if (refreshBtn) {
       refreshBtn.disabled = false;
@@ -286,6 +325,17 @@ function fetchAndRender() {
     if (!resp) return showError('No response from background script.');
     if (!resp.ok) return showError('Error: ' + (resp.error || 'unknown'));
     render(resp.refunds || []);
+    // after a fetch completes, try to update the cached timestamp in the footer
+    try {
+      const cacheKey = `refunds_${periodDays}`;
+      chrome.storage.local.get(cacheKey, (items: any) => {
+        if (chrome.runtime && chrome.runtime.lastError) return;
+        const cached = items && items[cacheKey];
+        setFooterCachedAt(cached && cached.fetchedAt ? cached.fetchedAt : undefined);
+      });
+    } catch (e) {
+      setFooterCachedAt(undefined);
+    }
   });
 }
 
@@ -305,13 +355,11 @@ chrome.runtime.onMessage.addListener((msg: any) => {
 document.addEventListener('DOMContentLoaded', () => {
   const refreshBtn = (document.getElementById('refresh') as HTMLButtonElement);
   const toggle = (document.getElementById('dev-toggle') as HTMLInputElement);
-  const modeEl = document.getElementById('mode');
 
   refreshBtn.addEventListener('click', fetchAndRender);
 
   getStoredDevMode().then((v) => {
     if (toggle) toggle.checked = v;
-    if (modeEl) modeEl.textContent = v ? 'DEV' : '';
     const periodSelect = (document.getElementById('period-select') as HTMLSelectElement | null);
     // initialize the period select from stored preference, then try to load cached results
     getStoredPeriod().then((p) => {
@@ -329,6 +377,8 @@ document.addEventListener('DOMContentLoaded', () => {
           if (cached && Array.isArray(cached.results) && cached.results.length) {
             // render cached results and do not re-run query automatically
             render(cached.results || []);
+            // show cached timestamp in footer
+            setFooterCachedAt(cached.fetchedAt);
           } else {
             fetchAndRender();
           }
@@ -337,13 +387,24 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchAndRender();
       }
     });
+    // after a fetch completes, try to update the cached timestamp in the footer
+    try {
+      const cacheKey = `refunds_${periodDays}`;
+      chrome.storage.local.get(cacheKey, (items: any) => {
+        if (chrome.runtime && chrome.runtime.lastError) return;
+        const cached = items && items[cacheKey];
+        setFooterCachedAt(cached && cached.fetchedAt ? cached.fetchedAt : undefined);
+      });
+    } catch (e) {
+      setFooterCachedAt(undefined);
+    }
   });
 
   if (toggle) {
     toggle.addEventListener('change', async () => {
       const v = toggle.checked;
       await setStoredDevMode(v);
-      if (modeEl) modeEl.textContent = v ? 'DEV' : '';
+      /* no visible DEV label anymore; mock mode is controlled by the checkbox stored in chrome.storage */
       fetchAndRender();
     });
   }
@@ -363,16 +424,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!collapseToggleBtn.querySelector('.icon')) {
       collapseToggleBtn.innerHTML = `
         <svg class="icon icon-minus" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path d="M5 12h14" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
         <svg class="icon icon-plus" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path d="M12 5v14" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M5 12h14" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M12 5v14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       `;
     }
     // initialize icon state from storage: if there are any collapsed keys, show plus (all-collapsed), otherwise show minus
-    getStoredCollapsedSenders().then((set) => { 
+    getStoredCollapsedSenders().then((set) => {
       if (set.size) collapseToggleBtn.classList.add('all-collapsed');
       else collapseToggleBtn.classList.remove('all-collapsed');
       collapseToggleBtn.setAttribute('aria-label', set.size ? 'Expand all' : 'Collapse all');
