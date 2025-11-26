@@ -313,10 +313,29 @@ document.addEventListener('DOMContentLoaded', () => {
     if (toggle) toggle.checked = v;
     if (modeEl) modeEl.textContent = v ? 'DEV' : '';
     const periodSelect = (document.getElementById('period-select') as HTMLSelectElement | null);
-    // initialize the period select from stored preference, then fetch
+    // initialize the period select from stored preference, then try to load cached results
     getStoredPeriod().then((p) => {
       if (periodSelect) periodSelect.value = String(p);
-      fetchAndRender();
+      // try to load cached results (key: refunds_<days>) and only run the query if cache missing
+      const cacheKey = `refunds_${p}`;
+      try {
+        chrome.storage.local.get(cacheKey, (items: any) => {
+          if (chrome.runtime && chrome.runtime.lastError) {
+            // storage read failed -> run query
+            fetchAndRender();
+            return;
+          }
+          const cached = items && items[cacheKey];
+          if (cached && Array.isArray(cached.results) && cached.results.length) {
+            // render cached results and do not re-run query automatically
+            render(cached.results || []);
+          } else {
+            fetchAndRender();
+          }
+        });
+      } catch (e) {
+        fetchAndRender();
+      }
     });
   });
 

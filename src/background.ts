@@ -79,7 +79,10 @@ async function fetchRefunds(periodDays: number = 14) {
       await new Promise((r) => setTimeout(r, 120));
       try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: i + 1, total }, () => { if (chrome.runtime && chrome.runtime.lastError) { /* no receiver */ } }); } catch (e) { }
     }
-    await new Promise<void>((res) => chrome.storage.local.set({ refunds: MOCK_REFUNDS }, res));
+    // store mock data under a period-specific cache key so popup can reload quickly
+    try {
+      await new Promise<void>((res) => chrome.storage.local.set({ [`refunds_${periodDays}`]: { results: MOCK_REFUNDS, fetchedAt: Date.now() } }, res));
+    } catch (e) {}
     return MOCK_REFUNDS;
   }
   const token = await getToken(true);
@@ -155,7 +158,10 @@ async function fetchRefunds(periodDays: number = 14) {
     try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: processed, total }, () => { if (chrome.runtime && chrome.runtime.lastError) { /* no receiver */ } }); } catch (e) { }
   }
 
-  await new Promise<void>((res) => chrome.storage.local.set({ refunds: results }, res));
+  try {
+    // cache results under a key per the periodDays used
+    await new Promise<void>((res) => chrome.storage.local.set({ [`refunds_${periodDays}`]: { results, fetchedAt: Date.now() } }, res));
+  } catch (e) {}
   return results;
 }
 
