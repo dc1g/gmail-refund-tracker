@@ -75,6 +75,15 @@
       color: #666;
       margin-top: 6px
     }
+
+    /* Collapsible group caret */
+    .caret {
+      width: 18px; height: 18px; display:inline-block; transform: rotate(90deg); transition: transform 120ms ease; border: 0; background: transparent; margin-right: 8px; vertical-align: middle; padding:0; cursor:pointer;
+    }
+    /* draw a right-pointing triangle using borders, then rotate the element to show down/open */
+    .caret::before { content: ''; display:inline-block; width:0; height:0; border-top:6px solid transparent; border-bottom:6px solid transparent; border-left:8px solid #333; }
+    /* when closed (collapsed) point to the right; when open (default) the caret is rotated 90deg and points down */
+    .caret.closed { transform: rotate(0deg); }
   </style>
 </head>
 

@@ -111,7 +111,44 @@ async function fetchRefunds(periodDays: number = 14) {
     const subject = (subjectHeader && subjectHeader.value) || '';
     const body = extractBody(msgJson.payload || {});
     const candidate = detectRefundCandidate(subject, body);
-    if (candidate) results.push(candidate);
+    if (candidate) {
+      // Extract 'From' header information to group results by sender
+      const fromHeader = headers.find((h:any) => h.name.toLowerCase() === 'from')?.value || '';
+      (candidate as any).from = fromHeader;
+      // parse display name and email address from the From header if possible
+      let fromName: string | null = null;
+      let fromEmail: string | null = null;
+      const angle = fromHeader.match(/^(?:\s*"?([^<\"]+)"?\s*<([^>]+)>)/);
+      if (angle) {
+        fromName = (angle[1] || '').trim();
+        fromEmail = (angle[2] || '').trim();
+      } else {
+        const emailMatch = fromHeader.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+        if (emailMatch) {
+          fromEmail = emailMatch[1];
+        }
+      }
+      if (fromName) (candidate as any).fromName = fromName;
+      if (fromEmail) (candidate as any).fromEmail = fromEmail;
+
+      // Attach a date (prefer internalDate then Date header) so the UI can sort by recency
+      let dateStr: string | null = null;
+      if (msgJson.internalDate) {
+        const ms = Number(msgJson.internalDate);
+        if (!Number.isNaN(ms)) dateStr = new Date(ms).toISOString();
+      }
+      if (!dateStr) {
+        const dateHeader = headers.find((h:any) => h.name.toLowerCase() === 'date')?.value;
+        try { if (dateHeader) dateStr = new Date(dateHeader).toISOString(); } catch (e) { dateStr = null; }
+      }
+      if (dateStr) (candidate as any).date = dateStr;
+
+      // attach ids to make it possible to open thread/message later
+      (candidate as any).id = m.id;
+      (candidate as any).threadId = msgJson.threadId;
+
+      results.push(candidate);
+    }
     // increment processed and inform popup
     processed++;
     try { chrome.runtime.sendMessage({ action: 'fetchProgress', done: processed, total }); } catch (e) { }
