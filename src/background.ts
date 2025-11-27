@@ -53,6 +53,53 @@ function extractBody(payload: any): string {
   return '';
 }
 
+function cleanSnippet(text: string): string {
+  // Remove script tags and their content (case insensitive, handles attributes)
+  let cleaned = text.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  // Remove style tags and their content (case insensitive, handles attributes)
+  cleaned = cleaned.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+  // Remove DOCTYPE declarations
+  cleaned = cleaned.replace(/<!DOCTYPE[^>]*>/gi, '');
+  // Remove HTML comments
+  cleaned = cleaned.replace(/<!--[\s\S]*?-->/g, '');
+  // Remove all HTML tags (including self-closing)
+  cleaned = cleaned.replace(/<[^>]+>/g, '');
+  // Remove CSS @font-face and other @-rules that might remain
+  cleaned = cleaned.replace(/@[a-z-]+\s*\{[^}]*\}/gi, '');
+  // Remove any remaining curly brace blocks (likely CSS)
+  cleaned = cleaned.replace(/\{[^}]*\}/g, '');
+  // Decode common HTML entities
+  cleaned = cleaned.replace(/&nbsp;/g, ' ');
+  cleaned = cleaned.replace(/&amp;/g, '&');
+  cleaned = cleaned.replace(/&lt;/g, '<');
+  cleaned = cleaned.replace(/&gt;/g, '>');
+  cleaned = cleaned.replace(/&quot;/g, '"');
+  cleaned = cleaned.replace(/&#39;/g, "'");
+  // Remove non-visible HTML entities (zero-width, soft hyphens, etc.)
+  cleaned = cleaned.replace(/&zwnj;/g, '');
+  cleaned = cleaned.replace(/&zwj;/g, '');
+  cleaned = cleaned.replace(/&shy;/g, '');
+  cleaned = cleaned.replace(/&lrm;/g, '');
+  cleaned = cleaned.replace(/&rlm;/g, '');
+  // Remove numeric character references for zero-width characters
+  cleaned = cleaned.replace(/&#8203;/g, ''); // zero-width space
+  cleaned = cleaned.replace(/&#8204;/g, ''); // zero-width non-joiner
+  cleaned = cleaned.replace(/&#8205;/g, ''); // zero-width joiner
+  cleaned = cleaned.replace(/&#8206;/g, ''); // left-to-right mark
+  cleaned = cleaned.replace(/&#8207;/g, ''); // right-to-left mark
+  cleaned = cleaned.replace(/&#173;/g, '');  // soft hyphen
+  // Remove Unicode zero-width characters directly
+  cleaned = cleaned.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+  // Remove all hyperlinks (http/https URLs)
+  cleaned = cleaned.replace(/https?:\/\/[^\s<]+/g, '');
+  // Replace multiple consecutive newlines with a single newline
+  cleaned = cleaned.replace(/\n\s*\n+/g, '\n');
+  // Replace multiple spaces with a single space
+  cleaned = cleaned.replace(/[ \t]+/g, ' ');
+  // Trim leading/trailing whitespace
+  return cleaned.trim();
+}
+
 function detectRefundCandidate(subject: string, body: string) {
   const text = (subject + '\n' + body).toLowerCase();
   const returnKeywords = ['return', 'returned', 'return label', 'return initiated', 'we received your return'];
@@ -62,9 +109,11 @@ function detectRefundCandidate(subject: string, body: string) {
   if (!isReturn) return null;
 
   const isRefund = refundKeywords.some(k => text.includes(k));
+  // Clean the entire body first, then take first 500 characters
+  const snippet = cleanSnippet(body).slice(0, 500);
   return {
     subject,
-    snippet: body.slice(0, 500),
+    snippet,
     status: isRefund ? 'refunded' : 'pending'
   };
 }
