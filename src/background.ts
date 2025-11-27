@@ -105,8 +105,8 @@ function detectRefundCandidate(subject: string, body: string) {
   const returnKeywords = ['return', 'returned', 'return label', 'return initiated', 'we received your return'];
   const refundKeywords = ['refund', 'refunded', 'refund processed', 'credited', 'we have issued a refund', 'refund has been issued', 'credit to your'];
 
-  const isReturn = returnKeywords.some(k => text.includes(k));
-  if (!isReturn) return null;
+  //const isReturn = returnKeywords.some(k => text.includes(k));
+  //if (!isReturn) return null;
 
   const isRefund = refundKeywords.some(k => text.includes(k));
   // Clean the entire body first, then take first 500 characters

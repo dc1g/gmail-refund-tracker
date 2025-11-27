@@ -2,6 +2,45 @@ import { DEV_MODE } from './config';
 
 function el(id: string) { return document.getElementById(id)!; }
 
+// Storage for suppressed messages
+let suppressedMessageIds = new Set<string>();
+let showingSuppressed = false;
+let lastRenderedResults: any[] = [];
+
+async function loadSuppressedIds(): Promise<Set<string>> {
+  return new Promise((resolve) => {
+    chrome.storage.local.get('suppressedMessages', (items: any) => {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        resolve(new Set());
+        return;
+      }
+      const ids = items.suppressedMessages || [];
+      resolve(new Set(ids));
+    });
+  });
+}
+
+async function saveSuppressedIds(ids: Set<string>): Promise<void> {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ suppressedMessages: Array.from(ids) }, () => {
+      resolve();
+    });
+  });
+}
+
+async function suppressMessage(messageId: string) {
+  suppressedMessageIds.add(messageId);
+  await saveSuppressedIds(suppressedMessageIds);
+  render(lastRenderedResults);
+}
+
+async function restoreMessage(messageId: string) {
+  suppressedMessageIds.delete(messageId);
+  await saveSuppressedIds(suppressedMessageIds);
+  // Re-fetch data to show the restored message
+  fetchAndRender();
+}
+
 function getStoredDevMode(): Promise<boolean> {
   return new Promise((resolve) => {
     try {
@@ -148,6 +187,7 @@ async function expandAllGroups() {
 }
 
 async function render(refunds: any[]) {
+  lastRenderedResults = refunds;
   const list = el('list');
   list.innerHTML = '';
   if (!refunds.length) {
@@ -198,7 +238,11 @@ async function render(refunds: any[]) {
     // show only the sender name in the UI; show full email address on hover via a tooltip element
     const labelSpan = document.createElement('span');
     labelSpan.className = 'sender-name';
-    const displayName = (g.name && g.name.trim()) ? g.name : (g.email || 'unknown');
+    let displayName = (g.name && g.name.trim()) ? g.name : (g.email || 'unknown');
+    // Truncate to max 20 characters with ellipsis
+    if (displayName.length > 20) {
+      displayName = displayName.slice(0, 20) + '...';
+    }
     labelSpan.textContent = displayName;
     // tooltip element that appears on hover
     const tooltip = document.createElement('span');
@@ -261,14 +305,23 @@ async function render(refunds: any[]) {
     });
 
     for (const r of g.items) {
+      // Filter based on current view mode
+      const isSuppressed = suppressedMessageIds.has(r.id);
+      if (showingSuppressed && !isSuppressed) continue;
+      if (!showingSuppressed && isSuppressed) continue;
+
       const item = document.createElement('div');
       item.className = 'item';
-      item.style.cursor = 'pointer';
-      item.addEventListener('click', () => {
+      item.style.position = 'relative';
+      
+      // Main clickable area
+      const clickableArea = document.createElement('div');
+      clickableArea.style.cursor = 'pointer';
+      clickableArea.addEventListener('click', () => {
         const gmailUrl = `https://mail.google.com/mail/u/0/#inbox/${r.id}`;
         window.open(gmailUrl, '_blank');
       });
-      
+
       const title = document.createElement('div');
       title.className = 'subject';
       title.textContent = r.subject || '(no subject)';
@@ -294,11 +347,30 @@ async function render(refunds: any[]) {
       snippet.className = 'snippet';
       snippet.textContent = r.snippet || '';
 
+      clickableArea.appendChild(title);
+      clickableArea.appendChild(meta);
+      clickableArea.appendChild(snippet);
+      item.appendChild(clickableArea);
+
+      // Add suppress/restore button
+      const actionBtn = document.createElement('button');
+      actionBtn.className = showingSuppressed ? 'restore-btn' : 'suppress-btn';
+      actionBtn.setAttribute('aria-label', showingSuppressed ? 'Restore message' : 'Suppress message');
+      actionBtn.innerHTML = showingSuppressed 
+        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      actionBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (showingSuppressed) {
+          await restoreMessage(r.id);
+        } else {
+          await suppressMessage(r.id);
+        }
+      });
+      item.appendChild(actionBtn);
+
       if (r.status === 'pending') item.style.background = 'var(--status-pending-bg)';
       else item.style.background = 'var(--status-refunded-bg)';
-      item.appendChild(title);
-      item.appendChild(meta);
-      item.appendChild(snippet);
       itemsContainer.appendChild(item);
     }
     list.appendChild(itemsContainer);
@@ -366,11 +438,25 @@ chrome.runtime.onMessage.addListener((msg: any) => {
   if (progressText) progressText.textContent = `${done} / ${total}`;
 });
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Load suppressed message IDs
+  suppressedMessageIds = await loadSuppressedIds();
+  
   const refreshBtn = (document.getElementById('refresh') as HTMLButtonElement);
   const toggle = (document.getElementById('dev-toggle') as HTMLInputElement);
+  const viewToggleBtn = (document.getElementById('view-toggle') as HTMLButtonElement);
 
   refreshBtn.addEventListener('click', fetchAndRender);
+
+  // Eye toggle button for active/suppressed view
+  if (viewToggleBtn) {
+    viewToggleBtn.addEventListener('click', () => {
+      showingSuppressed = !showingSuppressed;
+      viewToggleBtn.classList.toggle('showing-suppressed', showingSuppressed);
+      viewToggleBtn.setAttribute('aria-label', showingSuppressed ? 'Show active messages' : 'Show suppressed messages');
+      render(lastRenderedResults || []);
+    });
+  }
 
   getStoredDevMode().then((v) => {
     if (toggle) toggle.checked = v;
