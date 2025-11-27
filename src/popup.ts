@@ -263,6 +263,12 @@ async function render(refunds: any[]) {
     for (const r of g.items) {
       const item = document.createElement('div');
       item.className = 'item';
+      item.style.cursor = 'pointer';
+      item.addEventListener('click', () => {
+        const gmailUrl = `https://mail.google.com/mail/u/0/#inbox/${r.id}`;
+        window.open(gmailUrl, '_blank');
+      });
+      
       const title = document.createElement('div');
       title.className = 'subject';
       title.textContent = r.subject || '(no subject)';
