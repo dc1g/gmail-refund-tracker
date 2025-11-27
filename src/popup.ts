@@ -195,8 +195,16 @@ async function render(refunds: any[]) {
     if (collapsedSet.has(groupKey)) {
       caret.classList.add('closed');
     }
+    // show only the sender name in the UI; show full email address on hover via a tooltip element
     const labelSpan = document.createElement('span');
-    labelSpan.textContent = g.name ? `${g.name} <${g.email}>` : g.email;
+    labelSpan.className = 'sender-name';
+    const displayName = (g.name && g.name.trim()) ? g.name : (g.email || 'unknown');
+    labelSpan.textContent = displayName;
+    // tooltip element that appears on hover
+    const tooltip = document.createElement('span');
+    tooltip.className = 'email-tooltip';
+    tooltip.textContent = g.email || '';
+    labelSpan.appendChild(tooltip);
     left.appendChild(caret);
     left.appendChild(labelSpan);
 
