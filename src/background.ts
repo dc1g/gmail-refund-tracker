@@ -86,15 +86,8 @@ async function fetchRefunds(periodDays: number = 14) {
     return MOCK_REFUNDS;
   }
   const token = await getToken(true);
-  // compute a date 'periodDays' ago and use Gmail's after:YYYY/MM/DD search filter
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - Math.max(1, Math.floor(periodDays)));
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const afterStr = `${y}/${m}/${day}`;
-  const q = encodeURIComponent(`label:important {category:primary category:updates} {subject:refund subject:"return"} -Fwd' after:${afterStr}`);
+  // Use Gmail's newer_than search operator with the number of days
+  const q = encodeURIComponent(`label:important {category:primary category:updates} {subject:refund subject:"return"} -Fwd newer_than:${periodDays}d`);
   const listUrl = `https://www.googleapis.com/gmail/v1/users/me/messages?q=${q}`;
   const listResp = await fetch(listUrl, { headers: { Authorization: `Bearer ${token}` } });
   if (!listResp.ok) throw new Error('Failed to list messages: ' + listResp.statusText);
