@@ -37,8 +37,21 @@ async function suppressMessage(messageId: string) {
 async function restoreMessage(messageId: string) {
   suppressedMessageIds.delete(messageId);
   await saveSuppressedIds(suppressedMessageIds);
-  // Re-fetch data to show the restored message
-  fetchAndRender();
+  
+  // Check if there are any suppressed messages left
+  if (suppressedMessageIds.size === 0 && showingSuppressed) {
+    // No more suppressed messages, switch to active view and fetch
+    showingSuppressed = false;
+    const viewToggleBtn = document.getElementById('view-toggle') as HTMLButtonElement;
+    if (viewToggleBtn) {
+      viewToggleBtn.classList.remove('showing-suppressed');
+      viewToggleBtn.setAttribute('aria-label', 'Show suppressed messages');
+    }
+    fetchAndRender();
+  } else {
+    // Just re-render with current data
+    render(lastRenderedResults);
+  }
 }
 
 function getStoredDevMode(): Promise<boolean> {
@@ -218,6 +231,15 @@ async function render(refunds: any[]) {
 
   // Render each group (email address) with its items (most recent first)
   for (const g of groupArray) {
+    // Count only items that match the current view (active or suppressed)
+    const visibleItems = g.items.filter((item: any) => {
+      const isSuppressed = suppressedMessageIds.has(item.id);
+      return showingSuppressed ? isSuppressed : !isSuppressed;
+    });
+    
+    // Skip groups with no visible items
+    if (visibleItems.length === 0) continue;
+    
     const header = document.createElement('div');
     header.style.display = 'flex';
     header.style.justifyContent = 'space-between';
@@ -252,10 +274,12 @@ async function render(refunds: any[]) {
     left.appendChild(caret);
     left.appendChild(labelSpan);
 
+    const visibleCount = visibleItems.length;
+
     const right = document.createElement('div');
     right.style.fontSize = '12px';
     right.style.color = '#666';
-    right.textContent = `${g.items.length} item${g.items.length > 1 ? 's' : ''}` + (g.mostRecent ? ` · ${new Date(g.mostRecent).toLocaleString()}` : '');
+    right.textContent = `${visibleCount} item${visibleCount !== 1 ? 's' : ''}` + (g.mostRecent ? ` · ${new Date(g.mostRecent).toLocaleString()}` : '');
 
     header.appendChild(left);
     header.appendChild(right);
@@ -454,7 +478,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       showingSuppressed = !showingSuppressed;
       viewToggleBtn.classList.toggle('showing-suppressed', showingSuppressed);
       viewToggleBtn.setAttribute('aria-label', showingSuppressed ? 'Show active messages' : 'Show suppressed messages');
-      render(lastRenderedResults || []);
+      // If switching back to active view, re-fetch to show any restored messages
+      if (!showingSuppressed) {
+        fetchAndRender();
+      } else {
+        render(lastRenderedResults || []);
+      }
     });
   }
 
