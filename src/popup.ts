@@ -209,11 +209,11 @@ async function render(refunds: any[]) {
   // Load persisted collapsed sender keys so we render groups in the user's preferred collapsed state
   const collapsedSet = await getStoredCollapsedSenders();
 
-  // Group candidates by sender email. If fromEmail not available, fall back to the raw 'from' header.
+  // Group candidates by sender name. If fromName not available, fall back to email.
   const groups = new Map<string, any>();
   for (const r of refunds) {
-    const key = r.fromEmail || r.from || 'unknown';
-    if (!groups.has(key)) groups.set(key, { email: r.fromEmail || key, name: r.fromName || '', items: [] });
+    const key = r.fromName || r.fromEmail || r.from || 'unknown';
+    if (!groups.has(key)) groups.set(key, { email: r.fromEmail || r.from || '', name: r.fromName || key, items: [] });
     groups.get(key).items.push(r);
   }
 
@@ -271,14 +271,14 @@ async function render(refunds: any[]) {
     caret.className = 'caret';
     caret.setAttribute('aria-label', 'Toggle group');
     // closed when collapsed
-    const groupKey = g.email || 'unknown';
+    const groupKey = g.name || 'unknown';
     if (collapsedSet.has(groupKey)) {
       caret.classList.add('closed');
     }
-    // show only the sender name in the UI; show full email address on hover via a tooltip element
+    // show sender name in the UI; show full email address on hover via a tooltip element
     const labelSpan = document.createElement('span');
     labelSpan.className = 'sender-name';
-    let displayName = (g.name && g.name.trim()) ? g.name : (g.email || 'unknown');
+    let displayName = g.name || 'unknown';
     // Truncate to max 20 characters with ellipsis
     if (displayName.length > 20) {
       displayName = displayName.slice(0, 20) + '...';
@@ -364,6 +364,14 @@ async function render(refunds: any[]) {
         window.open(gmailUrl, '_blank');
       });
 
+      // Add email address as first line
+      const fromEmail = document.createElement('div');
+      fromEmail.style.fontSize = '11px';
+      fromEmail.style.color = '#666';
+      fromEmail.style.marginBottom = '4px';
+      const emailText = r.fromEmail || r.from || '';
+      fromEmail.textContent = emailText.length > 50 ? emailText.slice(0, 50) + '...' : emailText;
+
       const title = document.createElement('div');
       title.className = 'subject';
       title.textContent = r.subject || '(no subject)';
@@ -389,6 +397,7 @@ async function render(refunds: any[]) {
       snippet.className = 'snippet';
       snippet.textContent = r.snippet || '';
 
+      clickableArea.appendChild(fromEmail);
       clickableArea.appendChild(title);
       clickableArea.appendChild(meta);
       clickableArea.appendChild(snippet);
