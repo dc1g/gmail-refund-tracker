@@ -40,18 +40,17 @@ async function restoreMessage(messageId: string) {
   
   // Check if there are any suppressed messages left
   if (suppressedMessageIds.size === 0 && showingSuppressed) {
-    // No more suppressed messages, switch to active view and fetch
+    // No more suppressed messages, switch to active view
     showingSuppressed = false;
     const viewToggleBtn = document.getElementById('view-toggle') as HTMLButtonElement;
     if (viewToggleBtn) {
       viewToggleBtn.classList.remove('showing-suppressed');
       viewToggleBtn.setAttribute('aria-label', 'Show suppressed messages');
     }
-    fetchAndRender();
-  } else {
-    // Just re-render with current data
-    render(lastRenderedResults);
   }
+  
+  // Re-render with current data
+  render(lastRenderedResults);
 }
 
 function getStoredDevMode(): Promise<boolean> {
@@ -228,6 +227,25 @@ async function render(refunds: any[]) {
     g.mostRecent = g.items.length ? (g.items[0].date ? Date.parse(g.items[0].date) : 0) : 0;
     return g;
   }).sort((a: any, b: any) => b.mostRecent - a.mostRecent);
+
+  // Check if there are any items to display in the current view
+  let hasVisibleItems = false;
+  for (const g of groupArray) {
+    const visibleItems = g.items.filter((item: any) => {
+      const isSuppressed = suppressedMessageIds.has(item.id);
+      return showingSuppressed ? isSuppressed : !isSuppressed;
+    });
+    if (visibleItems.length > 0) {
+      hasVisibleItems = true;
+      break;
+    }
+  }
+
+  // If viewing suppressed and there are no suppressed items, show a message
+  if (showingSuppressed && !hasVisibleItems) {
+    list.textContent = 'No suppressed messages exist';
+    return;
+  }
 
   // Render each group (email address) with its items (most recent first)
   for (const g of groupArray) {
@@ -478,12 +496,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       showingSuppressed = !showingSuppressed;
       viewToggleBtn.classList.toggle('showing-suppressed', showingSuppressed);
       viewToggleBtn.setAttribute('aria-label', showingSuppressed ? 'Show active messages' : 'Show suppressed messages');
-      // If switching back to active view, re-fetch to show any restored messages
-      if (!showingSuppressed) {
-        fetchAndRender();
-      } else {
-        render(lastRenderedResults || []);
-      }
+      render(lastRenderedResults || []);
     });
   }
 
