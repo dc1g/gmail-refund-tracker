@@ -313,7 +313,7 @@ async function render(refunds: any[]) {
       const item = document.createElement('div');
       item.className = 'item';
       item.style.position = 'relative';
-      
+
       // Main clickable area
       const clickableArea = document.createElement('div');
       clickableArea.style.cursor = 'pointer';
@@ -356,9 +356,9 @@ async function render(refunds: any[]) {
       const actionBtn = document.createElement('button');
       actionBtn.className = showingSuppressed ? 'restore-btn' : 'suppress-btn';
       actionBtn.setAttribute('aria-label', showingSuppressed ? 'Restore message' : 'Suppress message');
-      actionBtn.innerHTML = showingSuppressed 
-        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      actionBtn.textContent = showingSuppressed ? '✓' : '✕';
+      actionBtn.style.fontSize = '16px';
+      actionBtn.style.fontWeight = 'bold';
       actionBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (showingSuppressed) {
@@ -441,7 +441,7 @@ chrome.runtime.onMessage.addListener((msg: any) => {
 document.addEventListener('DOMContentLoaded', async () => {
   // Load suppressed message IDs
   suppressedMessageIds = await loadSuppressedIds();
-  
+
   const refreshBtn = (document.getElementById('refresh') as HTMLButtonElement);
   const toggle = (document.getElementById('dev-toggle') as HTMLInputElement);
   const viewToggleBtn = (document.getElementById('view-toggle') as HTMLButtonElement);
